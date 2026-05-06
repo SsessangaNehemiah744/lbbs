@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'baseURL: process.env.REACT_APP_API_URL || 'https://lbbs-backend.onrender.com/api'
+  baseURL: process.env.REACT_APP_API_URL || 'https://lbbs-backend.onrender.com/api',
   headers: { 'Content-Type': 'application/json' },
   timeout: 10000,
 });

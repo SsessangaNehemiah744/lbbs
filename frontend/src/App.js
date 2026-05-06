@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom';
 import {
   BookOpen, Users, BookMarked, Search, LayoutDashboard,
@@ -28,14 +28,75 @@ function PageTitle() {
   return <span className="topbar-title">{match?.label || 'LBBS'}</span>;
 }
 
+function LiveClock() {
+  const [time, setTime] = useState(new Date());
+  useEffect(() => {
+    const t = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <span className="topbar-clock">
+      {time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+    </span>
+  );
+}
+
+// Inline SVG book icon for sidebar logo
+function BookIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0c0a09" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+    </svg>
+  );
+}
+
+// Sidebar decorative books illustration (inline SVG)
+function BooksIllustration() {
+  return (
+    <svg width="140" height="60" viewBox="0 0 140 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Book 1 */}
+      <rect x="8" y="10" width="18" height="44" rx="2" fill="#f59e0b" opacity="0.7"/>
+      <rect x="8" y="10" width="4" height="44" rx="1" fill="#d97706" opacity="0.7"/>
+      <line x1="12" y1="22" x2="22" y2="22" stroke="#0c0a09" strokeWidth="1" opacity="0.3"/>
+      <line x1="12" y1="28" x2="22" y2="28" stroke="#0c0a09" strokeWidth="1" opacity="0.3"/>
+      {/* Book 2 */}
+      <rect x="28" y="6" width="16" height="48" rx="2" fill="#a78bfa" opacity="0.6"/>
+      <rect x="28" y="6" width="4" height="48" rx="1" fill="#7c3aed" opacity="0.5"/>
+      {/* Book 3 */}
+      <rect x="46" y="14" width="20" height="40" rx="2" fill="#34d399" opacity="0.5"/>
+      <rect x="46" y="14" width="4" height="40" rx="1" fill="#059669" opacity="0.5"/>
+      {/* Book 4 */}
+      <rect x="68" y="8" width="14" height="46" rx="2" fill="#f87171" opacity="0.5"/>
+      <rect x="68" y="8" width="3" height="46" rx="1" fill="#dc2626" opacity="0.4"/>
+      {/* Book 5 */}
+      <rect x="84" y="16" width="18" height="38" rx="2" fill="#fbbf24" opacity="0.5"/>
+      <rect x="84" y="16" width="4" height="38" rx="1" fill="#d97706" opacity="0.4"/>
+      {/* Book 6 */}
+      <rect x="104" y="10" width="14" height="44" rx="2" fill="#60a5fa" opacity="0.4"/>
+      <rect x="104" y="10" width="3" height="44" rx="1" fill="#2563eb" opacity="0.4"/>
+      {/* Shelf */}
+      <rect x="4" y="54" width="132" height="4" rx="2" fill="#4a4540" opacity="0.5"/>
+    </svg>
+  );
+}
+
 function Sidebar({ open, onClose }) {
   return (
     <>
       <aside className={`sidebar${open ? ' open' : ''}`}>
         <div className="sidebar-logo">
-          <h1>Library<br/>System</h1>
-          <span>LBBS v1.0 — Makerere</span>
+          <div className="sidebar-logo-inner">
+            <div className="sidebar-logo-icon">
+              <BookIcon />
+            </div>
+            <div>
+              <h1>LBBS</h1>
+              <span>Makerere University</span>
+            </div>
+          </div>
         </div>
+
         <nav className="sidebar-nav">
           <div className="nav-section-label">Navigation</div>
           {NAV.map(({ to, label, icon: Icon, exact }) => (
@@ -48,18 +109,23 @@ function Sidebar({ open, onClose }) {
             >
               <Icon className="icon" size={15} />
               {label}
-              <ChevronRight size={12} style={{ marginLeft: 'auto', opacity: 0.3 }} />
+              <ChevronRight size={11} style={{ marginLeft: 'auto', opacity: 0.25 }} />
             </NavLink>
           ))}
         </nav>
+
+        <div className="sidebar-illustration">
+          <BooksIllustration />
+        </div>
+
         <div className="sidebar-footer">
           <p>IST 3205 &middot; Group 3</p>
-          <p><strong>Makerere University</strong></p>
+          <p><strong>Library Book Borrowing System</strong></p>
         </div>
       </aside>
       {open && (
         <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 99 }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 99, backdropFilter: 'blur(4px)' }}
           onClick={onClose}
         />
       )}
@@ -78,7 +144,11 @@ export default function App() {
           <header className="topbar">
             <PageTitle />
             <div className="topbar-actions">
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>IST 3205 — Group 3</span>
+              <LiveClock />
+              <div className="topbar-badge">
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--success)', display: 'inline-block', animation: 'pulse-glow 2s ease infinite' }} />
+                IST 3205 — Group 3
+              </div>
             </div>
           </header>
           <main className="page">
