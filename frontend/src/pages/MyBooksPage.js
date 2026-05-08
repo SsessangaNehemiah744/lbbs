@@ -1,240 +1,367 @@
 import React, { useState } from 'react';
-import { BookMarked, Search, AlertCircle, User } from 'lucide-react';
+import { X, Hash, Copy, Info, BookOpen, Clock, Eye } from 'lucide-react';
 import { getMemberBorrows } from '../utils/api';
 
-const COVER_GRADIENTS = [
-  'linear-gradient(135deg,#f59e0b,#d97706)',
-  'linear-gradient(135deg,#a78bfa,#7c3aed)',
-  'linear-gradient(135deg,#34d399,#059669)',
-  'linear-gradient(135deg,#f87171,#dc2626)',
-  'linear-gradient(135deg,#60a5fa,#2563eb)',
-  'linear-gradient(135deg,#fbbf24,#b45309)',
-  'linear-gradient(135deg,#c084fc,#7c3aed)',
-  'linear-gradient(135deg,#6ee7b7,#047857)',
+const COVER_COLORS = ['#f59e0b','#8b5cf6','#10b981','#ef4444','#3b82f6','#fbbf24','#a78bfa','#34d399','#f87171','#60a5fa'];
+const COVER_PATTERNS = [
+  'repeating-linear-gradient(45deg,rgba(0,0,0,0.1) 0px,rgba(0,0,0,0.1) 2px,transparent 2px,transparent 8px)',
+  'repeating-linear-gradient(-45deg,rgba(0,0,0,0.1) 0px,rgba(0,0,0,0.1) 2px,transparent 2px,transparent 8px)',
+  'radial-gradient(circle at 30% 30%,rgba(255,255,255,0.15) 0%,transparent 50%)',
+  'repeating-linear-gradient(0deg,rgba(0,0,0,0.08) 0px,rgba(0,0,0,0.08) 1px,transparent 1px,transparent 6px)',
 ];
-
-const GENRE_STYLES = {
-  'Programming':           { bg: 'rgba(245,158,11,0.15)',  color: '#f59e0b' },
-  'Computer Science':      { bg: 'rgba(96,165,250,0.15)',  color: '#60a5fa' },
-  'Software Architecture': { bg: 'rgba(167,139,250,0.15)', color: '#a78bfa' },
-  'Software Engineering':  { bg: 'rgba(52,211,153,0.15)',  color: '#34d399' },
-  'Mathematics':           { bg: 'rgba(251,191,36,0.15)',  color: '#fbbf24' },
-  'Science':               { bg: 'rgba(248,113,113,0.15)', color: '#f87171' },
-  'Fiction':               { bg: 'rgba(167,139,250,0.15)', color: '#c084fc' },
-  'Non-Fiction':           { bg: 'rgba(52,211,153,0.12)',  color: '#6ee7b7' },
-  'General':               { bg: 'rgba(255,255,255,0.07)', color: '#8a7f78' },
+const AVATAR_GRADIENTS = [
+  ['#f59e0b','#d97706'],['#8b5cf6','#6d28d9'],['#10b981','#059669'],
+  ['#ef4444','#dc2626'],['#3b82f6','#2563eb'],['#fbbf24','#f59e0b'],
+];
+const GENRE_BADGE = {
+  'Computer Science':'violet','Mathematics':'amber','Literature':'amber',
+  'Science':'emerald','Law':'violet','Business':'amber','Engineering':'emerald',
+  'Medicine':'red','History':'gray','Arts':'violet','Other':'gray',
+  'Programming':'violet','Software Architecture':'violet','Software Engineering':'emerald',
+  'Fiction':'amber','Non-Fiction':'gray','General':'gray',
 };
 
-const AVATAR_COLORS = [
-  'linear-gradient(135deg,#f59e0b,#d97706)',
-  'linear-gradient(135deg,#a78bfa,#7c3aed)',
-  'linear-gradient(135deg,#34d399,#059669)',
-  'linear-gradient(135deg,#f87171,#dc2626)',
-  'linear-gradient(135deg,#60a5fa,#2563eb)',
-];
-
-function getBookGradient(title) {
-  return COVER_GRADIENTS[title.charCodeAt(0) % COVER_GRADIENTS.length];
+function hashStr(str) {
+  let h = 0; for (const c of str) h = (h * 31 + c.charCodeAt(0)) & 0xffffffff;
+  return Math.abs(h);
+}
+function coverColor(str) { return COVER_COLORS[hashStr(str) % COVER_COLORS.length]; }
+function coverPattern(str) { return COVER_PATTERNS[hashStr(str) % COVER_PATTERNS.length]; }
+function avatarGradient(str) {
+  const [a, b] = AVATAR_GRADIENTS[hashStr(str) % AVATAR_GRADIENTS.length];
+  return `linear-gradient(135deg,${a},${b})`;
 }
 
-function getAvatarColor(name) {
-  return AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length];
-}
+/* ── Detail Modal ── */
+function BookModal({ book, onClose }) {
+  if (!book) return null;
+  const bg = coverColor(book.bookId || book.title);
+  const pat = coverPattern(book.bookId || book.title);
 
-function GenrePill({ genre }) {
-  const s = GENRE_STYLES[genre] || GENRE_STYLES['General'];
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center',
-      padding: '3px 9px', borderRadius: 6,
-      fontSize: '0.65rem', fontWeight: 700,
-      background: s.bg, color: s.color,
-      border: `1px solid ${s.color}33`,
-      textTransform: 'uppercase', letterSpacing: '0.08em',
-    }}>
-      {genre || 'General'}
-    </span>
+    <div style={S.overlay} onClick={onClose}>
+      <div style={S.modal} onClick={e => e.stopPropagation()}>
+        <button style={S.closeBtn} onClick={onClose}><X size={18}/></button>
+        <div style={S.modalTop}>
+          <div style={{ ...S.modalCover, background: bg }}>
+            <div style={{ ...S.modalCoverPat, backgroundImage: pat }}/>
+            <div style={S.modalSpine}/>
+            <span style={S.modalLetter}>{book.title[0].toUpperCase()}</span>
+            <div style={S.modalShine}/>
+          </div>
+          <div style={{ flex:1 }}>
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:10 }}>
+              <span className={`badge badge-${GENRE_BADGE[book.genre]||'gray'}`}>{book.genre}</span>
+              <span className="badge badge-amber">On Loan</span>
+            </div>
+            <h2 style={S.modalTitle}>{book.title}</h2>
+            <p style={S.modalAuthor}>by {book.author}</p>
+            {book.isbn && (
+              <div style={S.metaRow}><Hash size={12} style={{color:'var(--text-muted)'}}/><span style={S.metaTxt}>ISBN: {book.isbn}</span></div>
+            )}
+            <div style={S.metaRow}><Copy size={12} style={{color:'var(--text-muted)'}}/><span style={S.metaTxt}>ID: {book.bookId}</span></div>
+            <div style={S.loanNotice}>
+              <Clock size={14} style={{ color:'var(--amber)', flexShrink:0 }}/>
+              <span style={{ fontSize:12, color:'var(--text-secondary)' }}>
+                Currently checked out — please return when done
+              </span>
+            </div>
+          </div>
+        </div>
+        {book.description && (
+          <div style={S.descBox}>
+            <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:8 }}>
+              <Info size={13} style={{ color:'var(--amber)' }}/>
+              <span style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'0.8px' }}>About this book</span>
+            </div>
+            <p style={{ fontSize:13.5, color:'var(--text-secondary)', lineHeight:1.7 }}>{book.description}</p>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
-// My Books illustration
-function MyBooksIllustration() {
+/* ── Book Card ── */
+function BookCard({ book, onClick }) {
+  const bg = coverColor(book.bookId || book.title);
+  const pat = coverPattern(book.bookId || book.title);
+
   return (
-    <svg width="160" height="120" viewBox="0 0 160 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Person reading */}
-      <circle cx="80" cy="30" r="20" fill="rgba(245,158,11,0.15)" stroke="rgba(245,158,11,0.3)" strokeWidth="1.5"/>
-      <circle cx="80" cy="24" r="10" fill="rgba(245,158,11,0.35)"/>
-      <path d="M58 60c0-12 10-20 22-20s22 8 22 20" stroke="rgba(245,158,11,0.35)" strokeWidth="2" fill="none" strokeLinecap="round"/>
-      {/* Open book */}
-      <rect x="50" y="72" width="30" height="22" rx="3" fill="rgba(245,158,11,0.2)" stroke="rgba(245,158,11,0.4)" strokeWidth="1"/>
-      <rect x="80" y="72" width="30" height="22" rx="3" fill="rgba(167,139,250,0.2)" stroke="rgba(167,139,250,0.4)" strokeWidth="1"/>
-      <line x1="80" y1="72" x2="80" y2="94" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"/>
-      <line x1="55" y1="80" x2="76" y2="80" stroke="rgba(245,158,11,0.4)" strokeWidth="1.5" strokeLinecap="round"/>
-      <line x1="55" y1="86" x2="74" y2="86" stroke="rgba(245,158,11,0.3)" strokeWidth="1" strokeLinecap="round"/>
-      <line x1="84" y1="80" x2="105" y2="80" stroke="rgba(167,139,250,0.4)" strokeWidth="1.5" strokeLinecap="round"/>
-      <line x1="84" y1="86" x2="102" y2="86" stroke="rgba(167,139,250,0.3)" strokeWidth="1" strokeLinecap="round"/>
-      {/* Bookmark */}
-      <path d="M120 10 L120 40 L113 34 L106 40 L106 10 Z" fill="rgba(245,158,11,0.3)" stroke="rgba(245,158,11,0.5)" strokeWidth="1.5"/>
-      {/* Stars */}
-      <circle cx="25" cy="25" r="3" fill="rgba(245,158,11,0.3)"/>
-      <circle cx="140" cy="60" r="4" fill="rgba(167,139,250,0.3)"/>
-      <circle cx="15" cy="90" r="2.5" fill="rgba(52,211,153,0.3)"/>
-    </svg>
+    <div style={S.card} className="book-ecom-card" onClick={onClick}>
+      <div style={{ ...S.cover, background: bg }}>
+        <div style={{ ...S.coverPat, backgroundImage: pat }}/>
+        <div style={S.spine}/>
+        <span style={S.letter}>{book.title[0].toUpperCase()}</span>
+        <div style={S.shine}/>
+        {/* On Loan badge on cover */}
+        <div style={S.loanBadge}>
+          <Clock size={9}/> On Loan
+        </div>
+        {/* Hover overlay */}
+        <div className="cover-hover-overlay" style={S.hoverOverlay}>
+          <Eye size={16} style={{ marginBottom:4 }}/>
+          <span style={{ fontSize:11, fontWeight:700, letterSpacing:'0.5px' }}>View Details</span>
+        </div>
+      </div>
+      <div style={S.body}>
+        <div style={{ display:'flex', gap:5, flexWrap:'wrap', marginBottom:8 }}>
+          <span className={`badge badge-${GENRE_BADGE[book.genre]||'gray'}`} style={{ fontSize:10 }}>{book.genre}</span>
+          <span className="badge badge-amber" style={{ fontSize:10 }}>Borrowed</span>
+        </div>
+        <h3 style={S.title} title={book.title}>{book.title}</h3>
+        <p style={S.author}>{book.author}</p>
+        {book.description && <p style={S.desc}>{book.description}</p>}
+      </div>
+      <div style={S.footer}>
+        <span style={S.idPill}>{book.bookId}</span>
+        <span style={{ fontSize:10, color:'var(--amber)', display:'flex', alignItems:'center', gap:3 }}>
+          <Info size={10}/> Details
+        </span>
+      </div>
+    </div>
   );
 }
 
-// Empty state illustration
-function EmptyBooksIllustration() {
-  return (
-    <svg width="100" height="90" viewBox="0 0 100 90" fill="none" style={{ margin: '0 auto 16px', display: 'block', opacity: 0.2 }}>
-      <rect x="15" y="20" width="70" height="50" rx="6" stroke="currentColor" strokeWidth="2" fill="none"/>
-      <rect x="15" y="40" width="70" height="2" fill="currentColor" opacity="0.5"/>
-      <path d="M30 30 L70 30" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-      <path d="M30 52 L60 52" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-      <path d="M30 60 L55 60" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-      <circle cx="75" cy="20" r="12" stroke="currentColor" strokeWidth="2" fill="none"/>
-      <line x1="75" y1="15" x2="75" y2="25" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-      <line x1="70" y1="20" x2="80" y2="20" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-    </svg>
-  );
-}
-
+/* ── Main Page ── */
 export default function MyBooksPage() {
   const [memberId, setMemberId] = useState('');
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [data, setData]         = useState(null);
+  const [loading, setLoading]   = useState(false);
+  const [alert, setAlert]       = useState(null);
+  const [selected, setSelected] = useState(null);
 
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    setError(''); setData(null);
-    if (!memberId.trim()) { setError('Member ID is required.'); return; }
+  const handleLookup = async e => {
+    e?.preventDefault();
+    if (!memberId.trim()) return;
+    setAlert(null); setData(null);
     setLoading(true);
     try {
       const res = await getMemberBorrows(memberId.trim());
       setData(res.data);
-    } catch (e) { setError(e.message); }
+    } catch(err) {
+      setAlert({ type:'error', msg: err.message });
+    }
     setLoading(false);
   };
 
   return (
-    <div style={{ maxWidth: 860 }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 16 }}>
-        <div>
-          <h2 style={{
-            fontFamily: 'var(--font-display)', fontSize: '1.7rem', fontWeight: 700,
-            background: 'var(--gradient-accent)', backgroundSize: '200% 200%',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text', animation: 'gradientShift 5s ease infinite',
-          }}>My Books</h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.855rem', marginTop: 5 }}>
-            View all books currently on loan for a member
-          </p>
+    <div>
+      <div className="page-header">
+        <div className="page-header-text">
+          <h1>My Books</h1>
+          <p>Look up a member's currently borrowed books</p>
         </div>
-        <div style={{ opacity: 0.8 }}><MyBooksIllustration /></div>
       </div>
 
-      {/* Lookup card */}
-      <div className="card">
-        <div className="card-header">
-          <span className="card-title">
-            <span style={{
-              width: 28, height: 28, borderRadius: 8,
-              background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.25)',
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <BookMarked size={14} color="var(--accent)" />
-            </span>
-            Look Up Member
-          </span>
-        </div>
-        <form onSubmit={handleSearch}>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
-            <div className="field" style={{ flex: 1 }}>
-              <label>
-                <User size={11} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
-                Member ID
-              </label>
-              <input
-                value={memberId}
-                onChange={(e) => setMemberId(e.target.value)}
-                placeholder="e.g. M001"
-              />
-            </div>
-            <button className="btn btn-primary" type="submit" disabled={loading} style={{ marginBottom: 1 }}>
-              {loading
-                ? <span className="spinner" style={{ width: 14, height: 14 }} />
-                : <Search size={14} />}
-              Look Up
-            </button>
+      {/* Lookup form */}
+      <div className="card" style={{ marginBottom:24 }}>
+        <form onSubmit={handleLookup} style={{ display:'flex', gap:12, alignItems:'flex-end' }}>
+          <div className="form-group" style={{ flex:1 }}>
+            <label className="form-label">Member ID</label>
+            <input className="form-input" value={memberId} onChange={e => setMemberId(e.target.value)}
+              placeholder="e.g. M001" onKeyDown={e => e.key === 'Enter' && handleLookup()}/>
           </div>
+          <button className="btn btn-primary" type="submit" disabled={loading}>
+            {loading ? '⏳' : '🔎'} Look Up
+          </button>
         </form>
-        {error && (
-          <div className="alert alert-error" style={{ marginTop: 16 }}>
-            <AlertCircle size={14} style={{ flexShrink: 0 }} /> {error}
+        {alert && (
+          <div className={`alert alert-${alert.type}`} style={{ marginTop:12 }}>
+            <span>❌</span><div>{alert.msg}</div>
           </div>
         )}
       </div>
 
-      {/* Results */}
-      {data && (
-        <div className="card" style={{ animation: 'fadeUp 0.4s ease both' }}>
-          {/* Member profile header */}
-          <div className="card-header">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div className="member-avatar" style={{
-                background: getAvatarColor(data.member.name),
-                width: 48, height: 48, fontSize: '1.1rem',
-                boxShadow: '0 4px 14px rgba(0,0,0,0.3)',
-              }}>
-                {data.member.name.charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 700, color: 'var(--text)' }}>
-                  {data.member.name}
-                </div>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 3, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  <span className="badge badge-blue">{data.member.memberId}</span>
-                  <span style={{ color: 'var(--text-dim)' }}>{data.member.email}</span>
-                </div>
-              </div>
+      {loading && <div className="loading-center"><div className="spinner"/></div>}
+
+      {data && !loading && (
+        <>
+          {/* Member profile card */}
+          <div className="member-profile" style={{ marginBottom:24 }}>
+            <div className="member-profile-avatar"
+              style={{ background: avatarGradient(data.member.memberId || data.member.name) }}>
+              {data.member.name[0].toUpperCase()}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-              <span className="badge badge-gold" style={{ fontSize: '0.75rem', padding: '5px 12px' }}>
-                {data.count} book{data.count !== 1 ? 's' : ''} on loan
-              </span>
+            <div className="member-profile-info">
+              <h3>{data.member.name}</h3>
+              <p>
+                <span className="badge badge-violet" style={{ marginRight:8 }}>{data.member.memberId}</span>
+                {data.member.email}
+              </p>
+            </div>
+            <div style={{ marginLeft:'auto', textAlign:'center' }}>
+              <div style={{ fontFamily:"'Playfair Display',serif", fontSize:28, fontWeight:900, color:'var(--amber)' }}>
+                {data.count}
+              </div>
+              <div style={{ fontSize:12, color:'var(--text-secondary)' }}>On Loan</div>
             </div>
           </div>
 
+          {/* Borrowed books grid */}
           {data.borrowedBooks.length === 0 ? (
-            <div className="empty">
-              <EmptyBooksIllustration />
-              <p>This member has no books on loan.</p>
+            <div className="empty-state">
+              <div className="empty-state-icon">📂</div>
+              <h3>No books on loan</h3>
+              <p>{data.member.name} has no books currently borrowed.</p>
             </div>
           ) : (
-            <div className="book-grid">
-              {data.borrowedBooks.map((b, i) => (
-                <div key={b._id} className="book-card" style={{ animationDelay: `${i * 0.07}s` }}>
-                  {/* Generated book cover */}
-                  <div className="book-cover" style={{ background: getBookGradient(b.title) }}>
-                    {b.title.charAt(0)}
-                  </div>
-                  <GenrePill genre={b.genre} />
-                  <div className="book-card-title" style={{ marginTop: 8 }}>{b.title}</div>
-                  <div className="book-card-author">by {b.author}</div>
-                  <div className="book-card-footer">
-                    <span className="badge badge-gray">{b.bookId}</span>
-                    <span className="badge badge-gold" style={{ animation: 'pulse-glow 2.5s ease infinite' }}>
-                      On Loan
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <>
+              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:16 }}>
+                <BookOpen size={14} style={{ color:'var(--amber)' }}/>
+                <span style={{ fontSize:13, color:'var(--text-secondary)', fontWeight:600 }}>
+                  {data.count} book{data.count !== 1 ? 's' : ''} currently borrowed
+                </span>
+              </div>
+              <div style={S.grid}>
+                {data.borrowedBooks.map(b => (
+                  <BookCard key={b._id} book={b} onClick={() => setSelected(b)}/>
+                ))}
+              </div>
+            </>
           )}
-        </div>
+        </>
       )}
+
+      <BookModal book={selected} onClose={() => setSelected(null)}/>
+      <style>{CSS}</style>
     </div>
   );
 }
+
+/* ── Styles ── */
+const S = {
+  grid: { display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(210px,1fr))', gap:20 },
+  card: {
+    background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:16,
+    overflow:'hidden', display:'flex', flexDirection:'column', cursor:'pointer',
+    transition:'transform 0.22s ease,border-color 0.22s ease,box-shadow 0.22s ease',
+    position:'relative',
+  },
+  cover: {
+    height:180, position:'relative', display:'flex', alignItems:'center',
+    justifyContent:'center', overflow:'hidden', flexShrink:0,
+  },
+  coverPat: { position:'absolute', inset:0 },
+  spine: {
+    position:'absolute', left:0, top:0, bottom:0, width:10,
+    background:'rgba(0,0,0,0.28)', borderRight:'1px solid rgba(255,255,255,0.08)',
+  },
+  shine: {
+    position:'absolute', top:0, left:10, right:0, height:'38%',
+    background:'linear-gradient(180deg,rgba(255,255,255,0.13) 0%,transparent 100%)',
+    pointerEvents:'none',
+  },
+  letter: {
+    fontFamily:"'Playfair Display',serif", fontSize:58, fontWeight:900,
+    color:'rgba(0,0,0,0.32)', position:'relative', zIndex:1,
+    userSelect:'none', textShadow:'0 2px 10px rgba(0,0,0,0.25)',
+  },
+  loanBadge: {
+    position:'absolute', bottom:10, left:10,
+    background:'rgba(245,158,11,0.9)', color:'#000',
+    fontSize:9, fontWeight:800, padding:'3px 9px',
+    borderRadius:20, display:'flex', alignItems:'center', gap:3,
+    letterSpacing:'0.5px', zIndex:3,
+  },
+  hoverOverlay: {
+    position:'absolute', inset:0, background:'rgba(0,0,0,0.68)',
+    display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+    color:'#fff', opacity:0, transition:'opacity 0.25s ease', zIndex:2,
+  },
+  body: { padding:'14px 14px 8px', flex:1, display:'flex', flexDirection:'column' },
+  title: {
+    fontFamily:"'Playfair Display',serif", fontSize:14, fontWeight:700,
+    color:'var(--text-primary)', lineHeight:1.35, marginBottom:4,
+    display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden',
+  },
+  author: {
+    fontSize:11.5, color:'var(--text-secondary)', marginBottom:6,
+    overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
+  },
+  desc: {
+    fontSize:11, color:'var(--text-muted)', lineHeight:1.5,
+    display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden',
+  },
+  footer: {
+    padding:'8px 14px 12px', display:'flex', alignItems:'center',
+    justifyContent:'space-between', borderTop:'1px solid var(--border)', marginTop:4,
+  },
+  idPill: {
+    fontSize:10, color:'var(--text-muted)', fontFamily:'monospace',
+    background:'rgba(255,255,255,0.05)', padding:'2px 7px', borderRadius:4,
+  },
+  /* Modal */
+  overlay: {
+    position:'fixed', inset:0, background:'rgba(0,0,0,0.78)', backdropFilter:'blur(7px)',
+    zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center',
+    padding:20, animation:'fadeIn 0.2s ease',
+  },
+  modal: {
+    background:'var(--bg-card)', border:'1px solid var(--border-accent)', borderRadius:20,
+    padding:28, maxWidth:620, width:'100%', position:'relative',
+    boxShadow:'0 28px 90px rgba(0,0,0,0.65)',
+    animation:'modalIn 0.28s cubic-bezier(0.34,1.56,0.64,1)',
+    maxHeight:'90vh', overflowY:'auto',
+  },
+  closeBtn: {
+    position:'absolute', top:16, right:16, background:'rgba(255,255,255,0.07)',
+    border:'1px solid var(--border)', borderRadius:'50%', width:32, height:32,
+    display:'flex', alignItems:'center', justifyContent:'center',
+    color:'var(--text-secondary)', cursor:'pointer',
+  },
+  modalTop: { display:'flex', gap:24, marginBottom:20, alignItems:'flex-start' },
+  modalCover: {
+    width:110, height:150, borderRadius:8, flexShrink:0, position:'relative',
+    display:'flex', alignItems:'center', justifyContent:'center',
+    overflow:'hidden', boxShadow:'4px 4px 22px rgba(0,0,0,0.55)',
+  },
+  modalCoverPat: { position:'absolute', inset:0 },
+  modalSpine: {
+    position:'absolute', left:0, top:0, bottom:0, width:12,
+    background:'rgba(0,0,0,0.3)', borderRight:'1px solid rgba(255,255,255,0.1)',
+  },
+  modalShine: {
+    position:'absolute', top:0, left:12, right:0, height:'45%',
+    background:'linear-gradient(180deg,rgba(255,255,255,0.15) 0%,transparent 100%)',
+  },
+  modalLetter: {
+    fontFamily:"'Playfair Display',serif", fontSize:56, fontWeight:900,
+    color:'rgba(0,0,0,0.35)', position:'relative', zIndex:1, userSelect:'none',
+  },
+  modalTitle: {
+    fontFamily:"'Playfair Display',serif", fontSize:20, fontWeight:900,
+    color:'var(--text-primary)', lineHeight:1.3, marginBottom:6,
+  },
+  modalAuthor: { fontSize:13, color:'var(--text-secondary)', marginBottom:10, fontStyle:'italic' },
+  metaRow: { display:'flex', alignItems:'center', gap:6, marginBottom:4 },
+  metaTxt: { color:'var(--text-muted)', fontSize:12 },
+  loanNotice: {
+    display:'flex', alignItems:'center', gap:8, marginTop:14,
+    background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.2)',
+    borderRadius:8, padding:'10px 12px',
+  },
+  descBox: {
+    background:'rgba(255,255,255,0.03)', border:'1px solid var(--border)',
+    borderRadius:10, padding:'14px 16px',
+  },
+};
+
+const CSS = `
+.book-ecom-card:hover {
+  transform: translateY(-6px) scale(1.02);
+  border-color: var(--border-accent);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(245,158,11,0.2);
+}
+.book-ecom-card:hover .cover-hover-overlay {
+  opacity: 1 !important;
+}
+@keyframes modalIn {
+  from { opacity:0; transform:scale(0.85) translateY(24px); }
+  to   { opacity:1; transform:scale(1) translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity:0; }
+  to   { opacity:1; }
+}
+`;

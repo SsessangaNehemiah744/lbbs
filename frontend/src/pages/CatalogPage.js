@@ -1,99 +1,170 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Plus, Trash2, Search, BookOpen, RefreshCw, Library } from 'lucide-react';
+import { BookOpen, Plus, Trash2, Search, RefreshCw, X, Hash, Copy, Info, ChevronDown, ChevronUp, Eye } from 'lucide-react';
 import { getBooks, addBook, deleteBook } from '../utils/api';
 
-const GENRES = ['General', 'Programming', 'Computer Science', 'Software Architecture', 'Software Engineering', 'Mathematics', 'Science', 'Fiction', 'Non-Fiction'];
-
-const GENRE_STYLES = {
-  'Programming':           { bg: 'rgba(245,158,11,0.15)',  color: '#f59e0b' },
-  'Computer Science':      { bg: 'rgba(96,165,250,0.15)',  color: '#60a5fa' },
-  'Software Architecture': { bg: 'rgba(167,139,250,0.15)', color: '#a78bfa' },
-  'Software Engineering':  { bg: 'rgba(52,211,153,0.15)',  color: '#34d399' },
-  'Mathematics':           { bg: 'rgba(251,191,36,0.15)',  color: '#fbbf24' },
-  'Science':               { bg: 'rgba(248,113,113,0.15)', color: '#f87171' },
-  'Fiction':               { bg: 'rgba(167,139,250,0.15)', color: '#c084fc' },
-  'Non-Fiction':           { bg: 'rgba(52,211,153,0.12)',  color: '#6ee7b7' },
-  'General':               { bg: 'rgba(255,255,255,0.07)', color: '#8a7f78' },
-};
-
-const COVER_GRADIENTS = [
-  'linear-gradient(135deg,#f59e0b,#d97706)',
-  'linear-gradient(135deg,#a78bfa,#7c3aed)',
-  'linear-gradient(135deg,#34d399,#059669)',
-  'linear-gradient(135deg,#f87171,#dc2626)',
-  'linear-gradient(135deg,#60a5fa,#2563eb)',
-  'linear-gradient(135deg,#fbbf24,#b45309)',
-  'linear-gradient(135deg,#c084fc,#7c3aed)',
-  'linear-gradient(135deg,#6ee7b7,#047857)',
+const COVER_COLORS = ['#f59e0b','#8b5cf6','#10b981','#ef4444','#3b82f6','#fbbf24','#a78bfa','#34d399','#f87171','#60a5fa'];
+const COVER_PATTERNS = [
+  'repeating-linear-gradient(45deg,rgba(0,0,0,0.1) 0px,rgba(0,0,0,0.1) 2px,transparent 2px,transparent 8px)',
+  'repeating-linear-gradient(-45deg,rgba(0,0,0,0.1) 0px,rgba(0,0,0,0.1) 2px,transparent 2px,transparent 8px)',
+  'radial-gradient(circle at 30% 30%,rgba(255,255,255,0.15) 0%,transparent 50%)',
+  'repeating-linear-gradient(0deg,rgba(0,0,0,0.08) 0px,rgba(0,0,0,0.08) 1px,transparent 1px,transparent 6px)',
 ];
+const GENRE_BADGE = {
+  'Computer Science':'violet','Mathematics':'amber','Literature':'amber',
+  'Science':'emerald','Law':'violet','Business':'amber','Engineering':'emerald',
+  'Medicine':'red','History':'gray','Arts':'violet','Other':'gray',
+  'Programming':'violet','Software Architecture':'violet','Software Engineering':'emerald',
+  'Fiction':'amber','Non-Fiction':'gray','General':'gray',
+};
+const GENRES = ['General','Programming','Computer Science','Software Architecture',
+  'Software Engineering','Mathematics','Science','Fiction','Non-Fiction',
+  'Engineering','Medicine','Law','Business','Literature','History','Arts','Other'];
+const initForm = { bookId:'', title:'', author:'', totalCopies:'1', genre:'General', isbn:'', description:'' };
 
-function getBookGradient(title) {
-  return COVER_GRADIENTS[title.charCodeAt(0) % COVER_GRADIENTS.length];
+function hashStr(str) {
+  let h = 0; for (const c of str) h = (h * 31 + c.charCodeAt(0)) & 0xffffffff;
+  return Math.abs(h);
 }
+function coverColor(str) { return COVER_COLORS[hashStr(str) % COVER_COLORS.length]; }
+function coverPattern(str) { return COVER_PATTERNS[hashStr(str) % COVER_PATTERNS.length]; }
 
-function GenrePill({ genre }) {
-  const s = GENRE_STYLES[genre] || GENRE_STYLES['General'];
+/* ── Book Detail Modal ── */
+function BookModal({ book, onClose }) {
+  if (!book) return null;
+  const pct = book.totalCopies > 0 ? Math.round((book.availableCopies / book.totalCopies) * 100) : 0;
+  const barColor = pct > 50 ? 'var(--emerald)' : pct > 20 ? 'var(--amber)' : 'var(--red)';
+  const statusLabel = book.availableCopies === 0 ? 'Unavailable' : book.availableCopies <= 1 ? 'Low Stock' : 'Available';
+  const statusClass = book.availableCopies === 0 ? 'badge-red' : book.availableCopies <= 1 ? 'badge-amber' : 'badge-emerald';
+  const bg = coverColor(book.bookId || book.title);
+  const pat = coverPattern(book.bookId || book.title);
+
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center',
-      padding: '3px 9px', borderRadius: 6,
-      fontSize: '0.68rem', fontWeight: 600,
-      background: s.bg, color: s.color,
-      border: `1px solid ${s.color}33`,
-    }}>
-      {genre || 'General'}
-    </span>
+    <div style={S.overlay} onClick={onClose}>
+      <div style={S.modal} onClick={e => e.stopPropagation()}>
+        <button style={S.closeBtn} onClick={onClose}><X size={18}/></button>
+        <div style={S.modalTop}>
+          {/* Large cover */}
+          <div style={{ ...S.modalCover, background: bg }}>
+            <div style={{ ...S.modalCoverPat, backgroundImage: pat }}/>
+            <div style={S.modalSpine}/>
+            <span style={S.modalLetter}>{book.title[0].toUpperCase()}</span>
+            <div style={S.modalShine}/>
+          </div>
+          {/* Info */}
+          <div style={{ flex:1 }}>
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:10 }}>
+              <span className={`badge badge-${GENRE_BADGE[book.genre]||'gray'}`}>{book.genre}</span>
+              <span className={`badge ${statusClass}`}>{statusLabel}</span>
+            </div>
+            <h2 style={S.modalTitle}>{book.title}</h2>
+            <p style={S.modalAuthor}>by {book.author}</p>
+            {book.isbn && (
+              <div style={S.metaRow}><Hash size={12} style={{color:'var(--text-muted)'}}/><span style={S.metaTxt}>ISBN: {book.isbn}</span></div>
+            )}
+            <div style={S.metaRow}><Copy size={12} style={{color:'var(--text-muted)'}}/><span style={S.metaTxt}>ID: {book.bookId}</span></div>
+            <div style={{ marginTop:18 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, marginBottom:6 }}>
+                <span style={{ color:'var(--text-secondary)', fontWeight:600 }}>Availability</span>
+                <span style={{ color:'var(--text-muted)' }}>{book.availableCopies} / {book.totalCopies} copies</span>
+              </div>
+              <div className="progress-bar-wrap" style={{ height:8, borderRadius:6 }}>
+                <div className="progress-bar-fill" style={{ width:`${pct}%`, background:barColor, borderRadius:6 }}/>
+              </div>
+              <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:4 }}>{pct}% available</div>
+            </div>
+            <div style={S.statsRow}>
+              <div style={S.stat}><div style={{ ...S.statVal, color:'var(--amber)' }}>{book.totalCopies}</div><div style={S.statLbl}>Total</div></div>
+              <div style={S.stat}><div style={{ ...S.statVal, color:'var(--emerald)' }}>{book.availableCopies}</div><div style={S.statLbl}>Available</div></div>
+              <div style={S.stat}><div style={{ ...S.statVal, color:'var(--violet-light)' }}>{book.totalCopies - book.availableCopies}</div><div style={S.statLbl}>On Loan</div></div>
+            </div>
+          </div>
+        </div>
+        {book.description && (
+          <div style={S.descBox}>
+            <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:8 }}>
+              <Info size={13} style={{ color:'var(--amber)' }}/>
+              <span style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'0.8px' }}>About this book</span>
+            </div>
+            <p style={{ fontSize:13.5, color:'var(--text-secondary)', lineHeight:1.7 }}>{book.description}</p>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
-// Catalog hero illustration
-function CatalogIllustration() {
+/* ── Book Card ── */
+function BookCard({ book, onDelete, onClick }) {
+  const pct = book.totalCopies > 0 ? Math.round((book.availableCopies / book.totalCopies) * 100) : 0;
+  const barColor = pct > 50 ? 'var(--emerald)' : pct > 20 ? 'var(--amber)' : 'var(--red)';
+  const statusLabel = book.availableCopies === 0 ? 'Unavailable' : book.availableCopies <= 1 ? 'Low Stock' : 'Available';
+  const statusClass = book.availableCopies === 0 ? 'badge-red' : book.availableCopies <= 1 ? 'badge-amber' : 'badge-emerald';
+  const bg = coverColor(book.bookId || book.title);
+  const pat = coverPattern(book.bookId || book.title);
+
   return (
-    <svg width="180" height="130" viewBox="0 0 180 130" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Table */}
-      <rect x="10" y="100" width="160" height="8" rx="4" fill="rgba(245,158,11,0.2)"/>
-      <rect x="30" y="108" width="8" height="20" rx="2" fill="rgba(245,158,11,0.15)"/>
-      <rect x="142" y="108" width="8" height="20" rx="2" fill="rgba(245,158,11,0.15)"/>
-      {/* Stack of books */}
-      <rect x="50" y="60" width="80" height="14" rx="3" fill="rgba(245,158,11,0.5)"/>
-      <rect x="50" y="60" width="6" height="14" rx="1" fill="rgba(245,158,11,0.7)"/>
-      <rect x="55" y="46" width="70" height="14" rx="3" fill="rgba(167,139,250,0.5)"/>
-      <rect x="55" y="46" width="6" height="14" rx="1" fill="rgba(167,139,250,0.7)"/>
-      <rect x="60" y="32" width="60" height="14" rx="3" fill="rgba(52,211,153,0.5)"/>
-      <rect x="60" y="32" width="6" height="14" rx="1" fill="rgba(52,211,153,0.7)"/>
-      <rect x="65" y="18" width="50" height="14" rx="3" fill="rgba(248,113,113,0.5)"/>
-      <rect x="65" y="18" width="6" height="14" rx="1" fill="rgba(248,113,113,0.7)"/>
-      {/* Magnifying glass */}
-      <circle cx="148" cy="30" r="16" stroke="rgba(245,158,11,0.4)" strokeWidth="3" fill="none"/>
-      <line x1="159" y1="41" x2="170" y2="52" stroke="rgba(245,158,11,0.4)" strokeWidth="3" strokeLinecap="round"/>
-      <circle cx="148" cy="30" r="8" fill="rgba(245,158,11,0.08)"/>
-      {/* Plus icon */}
-      <circle cx="28" cy="28" r="14" fill="rgba(52,211,153,0.1)" stroke="rgba(52,211,153,0.3)" strokeWidth="1.5"/>
-      <line x1="28" y1="22" x2="28" y2="34" stroke="rgba(52,211,153,0.7)" strokeWidth="2" strokeLinecap="round"/>
-      <line x1="22" y1="28" x2="34" y2="28" stroke="rgba(52,211,153,0.7)" strokeWidth="2" strokeLinecap="round"/>
-    </svg>
+    <div style={S.card} className="book-ecom-card" onClick={onClick}>
+      {/* ── Cover ── */}
+      <div style={{ ...S.cover, background: bg }}>
+        <div style={{ ...S.coverPat, backgroundImage: pat }}/>
+        <div style={S.spine}/>
+        <span style={S.letter}>{book.title[0].toUpperCase()}</span>
+        <div style={S.shine}/>
+        {book.availableCopies === 0 && <div style={S.ribbon}>OUT OF STOCK</div>}
+        {/* Hover overlay */}
+        <div className="cover-hover-overlay" style={S.hoverOverlay}>
+          <Eye size={16} style={{ marginBottom:4 }}/>
+          <span style={{ fontSize:11, fontWeight:700, letterSpacing:'0.5px' }}>View Details</span>
+        </div>
+      </div>
+
+      {/* ── Body ── */}
+      <div style={S.body}>
+        <div style={{ display:'flex', gap:5, flexWrap:'wrap', marginBottom:8 }}>
+          <span className={`badge badge-${GENRE_BADGE[book.genre]||'gray'}`} style={{ fontSize:10 }}>{book.genre}</span>
+          <span className={`badge ${statusClass}`} style={{ fontSize:10 }}>{statusLabel}</span>
+        </div>
+        <h3 style={S.title} title={book.title}>{book.title}</h3>
+        <p style={S.author}>{book.author}</p>
+        {book.isbn && <p style={S.isbn}>ISBN: {book.isbn}</p>}
+        <div style={{ marginTop:'auto', paddingTop:10 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, marginBottom:4 }}>
+            <span style={{ color:'var(--text-muted)' }}>Availability</span>
+            <span style={{ color:'var(--text-secondary)', fontWeight:600 }}>{book.availableCopies}/{book.totalCopies}</span>
+          </div>
+          <div className="progress-bar-wrap">
+            <div className="progress-bar-fill" style={{ width:`${pct}%`, background:barColor }}/>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Footer ── */}
+      <div style={S.footer} onClick={e => e.stopPropagation()}>
+        <span style={S.idPill}>{book.bookId}</span>
+        <button className="btn btn-danger btn-sm" style={{ padding:'4px 10px' }}
+          onClick={e => { e.stopPropagation(); onDelete(book.bookId, book.title); }}>
+          <Trash2 size={12}/>
+        </button>
+      </div>
+    </div>
   );
 }
 
-const initForm = { bookId: '', title: '', author: '', totalCopies: '', genre: 'General', isbn: '', description: '' };
-
+/* ── Main Page ── */
 export default function CatalogPage() {
-  const [books, setBooks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState(initForm);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [search, setSearch] = useState('');
+  const [books, setBooks]     = useState([]);
   const [filtered, setFiltered] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm]       = useState(initForm);
+  const [submitting, setSubmitting] = useState(false);
+  const [alert, setAlert]     = useState(null);
+  const [search, setSearch]   = useState('');
+  const [selected, setSelected] = useState(null);
+  const [showForm, setShowForm] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
-    try {
-      const res = await getBooks();
-      setBooks(res.data);
-      setFiltered(res.data);
-    } catch (e) { setError(e.message); }
+    try { const r = await getBooks(); setBooks(r.data); setFiltered(r.data); } catch(_) {}
     setLoading(false);
   }, []);
 
@@ -102,232 +173,263 @@ export default function CatalogPage() {
   useEffect(() => {
     if (!search.trim()) { setFiltered(books); return; }
     const q = search.toLowerCase();
-    setFiltered(books.filter((b) =>
-      b.title.toLowerCase().includes(q) ||
-      b.author.toLowerCase().includes(q) ||
-      b.bookId.toLowerCase().includes(q) ||
-      (b.genre || '').toLowerCase().includes(q)
-    ));
+    setFiltered(books.filter(b => [b.bookId,b.title,b.author,b.genre].join(' ').toLowerCase().includes(q)));
   }, [search, books]);
 
-  const handleChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+  const showAlert = (type, msg) => { setAlert({ type, msg }); setTimeout(() => setAlert(null), 5000); };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async e => {
     e.preventDefault();
-    setError(''); setSuccess('');
-    const { bookId, title, author, totalCopies } = form;
-    if (!bookId || !title || !author || !totalCopies) { setError('bookId, title, author, and totalCopies are required.'); return; }
-    const copies = parseInt(totalCopies, 10);
-    if (isNaN(copies) || copies < 1) { setError('totalCopies must be a positive integer.'); return; }
+    if (!form.bookId || !form.title || !form.author) return showAlert('error','Book ID, Title, and Author are required.');
     setSubmitting(true);
     try {
-      await addBook({ ...form, totalCopies: copies });
-      setSuccess(`"${title}" added to catalog.`);
-      setForm(initForm);
-      load();
-    } catch (e) { setError(e.message); }
+      await addBook({ ...form, totalCopies: parseInt(form.totalCopies) || 1 });
+      showAlert('success', `"${form.title}" added to catalog.`);
+      setForm(initForm); load();
+    } catch(err) { showAlert('error', err.message); }
     setSubmitting(false);
   };
 
   const handleDelete = async (bookId, title) => {
-    if (!window.confirm(`Remove "${title}" from the catalog?`)) return;
-    setError(''); setSuccess('');
-    try {
-      await deleteBook(bookId);
-      setSuccess(`"${title}" removed.`);
-      load();
-    } catch (e) { setError(e.message); }
+    if (!window.confirm(`Delete "${title}"?`)) return;
+    try { await deleteBook(bookId); showAlert('success', `"${title}" removed.`); load(); }
+    catch(err) { showAlert('error', err.message); }
   };
 
   return (
     <div>
-      {/* Page header with illustration */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 16 }}>
-        <div>
-          <h2 style={{
-            fontFamily: 'var(--font-display)', fontSize: '1.7rem', fontWeight: 700,
-            background: 'var(--gradient-accent)', backgroundSize: '200% 200%',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text', animation: 'gradientShift 5s ease infinite',
-          }}>Book Catalog</h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.855rem', marginTop: 5 }}>
-            Manage the library's complete book collection
-          </p>
+      <div className="page-header">
+        <div className="page-header-text">
+          <h1>Book Catalog</h1>
+          <p>Browse and manage the entire library collection</p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ opacity: 0.6 }}><CatalogIllustration /></div>
-          <button className="btn btn-ghost btn-sm" onClick={load}>
-            <RefreshCw size={13} /> Refresh
-          </button>
-        </div>
+        <button className="btn btn-primary" onClick={() => setShowForm(f => !f)}>
+          {showForm ? <ChevronUp size={15}/> : <Plus size={15}/>}
+          {showForm ? 'Hide Form' : 'Add New Book'}
+        </button>
       </div>
 
-      {/* Add book form */}
-      <div className="card">
-        <div className="card-header">
-          <span className="card-title">
-            <span style={{
-              width: 28, height: 28, borderRadius: 8,
-              background: 'rgba(52,211,153,0.15)', border: '1px solid rgba(52,211,153,0.25)',
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Plus size={14} color="var(--success)" />
-            </span>
-            Add New Book
-          </span>
-        </div>
-        {error && <div className="alert alert-error">{error}</div>}
-        {success && <div className="alert alert-success">{success}</div>}
-        <form onSubmit={handleSubmit}>
-          <div className="form-grid cols-3">
-            <div className="field">
-              <label>Book ID *</label>
-              <input name="bookId" value={form.bookId} onChange={handleChange} placeholder="e.g. B009" />
-            </div>
-            <div className="field">
-              <label>Title *</label>
-              <input name="title" value={form.title} onChange={handleChange} placeholder="Book title" />
-            </div>
-            <div className="field">
-              <label>Author *</label>
-              <input name="author" value={form.author} onChange={handleChange} placeholder="Author name" />
-            </div>
-            <div className="field">
-              <label>Total Copies *</label>
-              <input name="totalCopies" type="number" min="1" value={form.totalCopies} onChange={handleChange} placeholder="1" />
-            </div>
-            <div className="field">
-              <label>Genre</label>
-              <select name="genre" value={form.genre} onChange={handleChange}>
-                {GENRES.map((g) => <option key={g}>{g}</option>)}
-              </select>
-            </div>
-            <div className="field">
-              <label>ISBN</label>
-              <input name="isbn" value={form.isbn} onChange={handleChange} placeholder="Optional" />
-            </div>
-            <div className="field" style={{ gridColumn: '1 / -1' }}>
-              <label>Description</label>
-              <textarea name="description" value={form.description} onChange={handleChange} placeholder="Brief description (optional)" rows={2} />
+      {/* Collapsible add form */}
+      {showForm && (
+        <div className="card" style={{ marginBottom:24, animation:'fadeIn 0.25s ease' }}>
+          <div className="card-header">
+            <div className="card-title" style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <BookOpen size={16}/> Add New Book
             </div>
           </div>
-          <div style={{ marginTop: 18 }}>
+          {alert && (
+            <div className={`alert alert-${alert.type}`}>
+              <span>{alert.type === 'success' ? <RefreshCw size={14}/> : <X size={14}/>}</span>
+              <div>{alert.msg}</div>
+            </div>
+          )}
+          <form onSubmit={handleSubmit}>
+            <div className="form-grid form-grid-2" style={{ marginBottom:16 }}>
+              <div className="form-group">
+                <label className="form-label">Book ID</label>
+                <input className="form-input" value={form.bookId} onChange={e => setForm(f => ({ ...f, bookId:e.target.value }))} placeholder="e.g. B001"/>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Title</label>
+                <input className="form-input" value={form.title} onChange={e => setForm(f => ({ ...f, title:e.target.value }))} placeholder="Book title"/>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Author</label>
+                <input className="form-input" value={form.author} onChange={e => setForm(f => ({ ...f, author:e.target.value }))} placeholder="Author name"/>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Total Copies</label>
+                <input className="form-input" type="number" min="1" value={form.totalCopies} onChange={e => setForm(f => ({ ...f, totalCopies:e.target.value }))}/>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Genre</label>
+                <select className="form-select" value={form.genre} onChange={e => setForm(f => ({ ...f, genre:e.target.value }))}>
+                  {GENRES.map(g => <option key={g}>{g}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">ISBN</label>
+                <input className="form-input" value={form.isbn} onChange={e => setForm(f => ({ ...f, isbn:e.target.value }))} placeholder="978-..."/>
+              </div>
+            </div>
+            <div className="form-group" style={{ marginBottom:16 }}>
+              <label className="form-label">Description</label>
+              <textarea className="form-textarea" value={form.description} onChange={e => setForm(f => ({ ...f, description:e.target.value }))} placeholder="Brief description..."/>
+            </div>
             <button className="btn btn-primary" type="submit" disabled={submitting}>
-              {submitting
-                ? <><span className="spinner" style={{ width: 14, height: 14 }} /> Adding…</>
-                : <><Plus size={14} /> Add Book</>}
+              <Plus size={15}/> {submitting ? 'Adding…' : 'Add Book to Catalog'}
             </button>
-          </div>
-        </form>
-      </div>
-
-      {/* Books table */}
-      <div className="card">
-        <div className="card-header">
-          <span className="card-title">
-            <Library size={16} style={{ color: 'var(--accent)' }} />
-            All Books
-            <span className="badge badge-gold" style={{ marginLeft: 4 }}>{filtered.length}</span>
-          </span>
-          <div className="search-wrap">
-            <Search className="icon" />
-            <input
-              placeholder="Filter by title, author, genre…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{ width: 240 }}
-            />
-          </div>
+          </form>
         </div>
+      )}
 
-        {loading ? (
-          <div className="loading-center"><div className="spinner" /><span>Loading catalog…</span></div>
-        ) : filtered.length === 0 ? (
-          <div className="empty">
-            <svg width="64" height="64" viewBox="0 0 64 64" fill="none" style={{ margin: '0 auto 16px', display: 'block', opacity: 0.2 }}>
-              <rect x="8" y="8" width="48" height="48" rx="8" stroke="currentColor" strokeWidth="2"/>
-              <path d="M20 24h24M20 32h16M20 40h20" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-            <p>No books found{search ? ` for "${search}"` : ''}.</p>
-          </div>
-        ) : (
-          <div className="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>Book</th>
-                  <th>Author</th>
-                  <th>Genre</th>
-                  <th style={{ textAlign: 'center' }}>Copies</th>
-                  <th style={{ textAlign: 'center' }}>Available</th>
-                  <th>Status</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((b) => {
-                  const pct = b.totalCopies > 0 ? (b.availableCopies / b.totalCopies) * 100 : 0;
-                  const barColor = pct === 0 ? 'var(--danger)' : pct < 50 ? 'var(--warn)' : 'var(--success)';
-                  return (
-                    <tr key={b._id}>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div style={{
-                            width: 32, height: 40, borderRadius: 4, flexShrink: 0,
-                            background: getBookGradient(b.title),
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: '0.9rem', fontWeight: 700, color: 'rgba(255,255,255,0.9)',
-                            fontFamily: 'var(--font-display)',
-                            boxShadow: '2px 2px 6px rgba(0,0,0,0.3)',
-                          }}>
-                            {b.title.charAt(0)}
-                          </div>
-                          <div>
-                            <div style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--text)' }}>{b.title}</div>
-                            <span className="badge badge-gray" style={{ marginTop: 3, fontSize: '0.62rem' }}>{b.bookId}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td style={{ color: 'var(--text-muted)', fontSize: '0.84rem' }}>{b.author}</td>
-                      <td><GenrePill genre={b.genre} /></td>
-                      <td style={{ textAlign: 'center', fontWeight: 600 }}>{b.totalCopies}</td>
-                      <td style={{ textAlign: 'center' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                          <span style={{ fontWeight: 700, color: barColor }}>{b.availableCopies}</span>
-                          <div style={{ width: 48, height: 3, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${pct}%`, background: barColor, borderRadius: 2 }} />
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        {b.availableCopies === 0 ? (
-                          <span className="badge badge-red">Unavailable</span>
-                        ) : b.availableCopies < b.totalCopies * 0.5 ? (
-                          <span className="badge badge-gold">Low Stock</span>
-                        ) : (
-                          <span className="badge badge-green">Available</span>
-                        )}
-                      </td>
-                      <td>
-                        <button
-                          className="btn btn-ghost btn-sm btn-icon"
-                          title="Remove book"
-                          onClick={() => handleDelete(b.bookId, b.title)}
-                          style={{ color: 'var(--danger)' }}
-                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.1)'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+      {!showForm && alert && (
+        <div className={`alert alert-${alert.type}`} style={{ marginBottom:16 }}><div>{alert.msg}</div></div>
+      )}
+
+      {/* Search + count */}
+      <div style={{ display:'flex', gap:12, alignItems:'center', marginBottom:20 }}>
+        <div style={{ position:'relative', flex:1 }}>
+          <Search size={14} style={{ position:'absolute', left:13, top:'50%', transform:'translateY(-50%)', color:'var(--text-muted)', zIndex:1 }}/>
+          <input className="form-input" style={{ paddingLeft:38 }} value={search}
+            onChange={e => setSearch(e.target.value)} placeholder="Search by title, author, genre, or ID..."/>
+        </div>
+        <span className="badge badge-amber" style={{ whiteSpace:'nowrap' }}>{filtered.length} books</span>
       </div>
+
+      {/* Grid */}
+      {loading ? (
+        <div className="loading-center"><div className="spinner"/></div>
+      ) : filtered.length === 0 ? (
+        <div className="empty-state">
+          <BookOpen size={40} style={{ margin:'0 auto 12px', display:'block', opacity:0.3 }}/>
+          <h3>No books found</h3>
+          <p>{search ? 'Try a different search.' : 'Add your first book above.'}</p>
+        </div>
+      ) : (
+        <div style={S.grid}>
+          {filtered.map(b => (
+            <BookCard key={b._id} book={b} onDelete={handleDelete} onClick={() => setSelected(b)}/>
+          ))}
+        </div>
+      )}
+
+      <BookModal book={selected} onClose={() => setSelected(null)}/>
+      <style>{CSS}</style>
     </div>
   );
 }
+
+/* ── Styles ── */
+const S = {
+  grid: { display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(210px,1fr))', gap:20 },
+  card: {
+    background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:16,
+    overflow:'hidden', display:'flex', flexDirection:'column', cursor:'pointer',
+    transition:'transform 0.22s ease,border-color 0.22s ease,box-shadow 0.22s ease',
+    position:'relative',
+  },
+  cover: {
+    height:180, position:'relative', display:'flex', alignItems:'center',
+    justifyContent:'center', overflow:'hidden', flexShrink:0,
+  },
+  coverPat: { position:'absolute', inset:0 },
+  spine: {
+    position:'absolute', left:0, top:0, bottom:0, width:10,
+    background:'rgba(0,0,0,0.28)', borderRight:'1px solid rgba(255,255,255,0.08)',
+  },
+  shine: {
+    position:'absolute', top:0, left:10, right:0, height:'38%',
+    background:'linear-gradient(180deg,rgba(255,255,255,0.13) 0%,transparent 100%)',
+    pointerEvents:'none',
+  },
+  letter: {
+    fontFamily:"'Playfair Display',serif", fontSize:58, fontWeight:900,
+    color:'rgba(0,0,0,0.32)', position:'relative', zIndex:1,
+    userSelect:'none', textShadow:'0 2px 10px rgba(0,0,0,0.25)',
+  },
+  ribbon: {
+    position:'absolute', top:14, right:-10, background:'var(--red)', color:'#fff',
+    fontSize:8, fontWeight:800, padding:'3px 18px 3px 8px', letterSpacing:'1px',
+    clipPath:'polygon(0 0,100% 0,88% 50%,100% 100%,0 100%)',
+  },
+  hoverOverlay: {
+    position:'absolute', inset:0, background:'rgba(0,0,0,0.68)',
+    display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+    color:'#fff', opacity:0, transition:'opacity 0.25s ease', zIndex:2,
+  },
+  body: { padding:'14px 14px 8px', flex:1, display:'flex', flexDirection:'column' },
+  title: {
+    fontFamily:"'Playfair Display',serif", fontSize:14, fontWeight:700,
+    color:'var(--text-primary)', lineHeight:1.35, marginBottom:4,
+    display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden',
+  },
+  author: {
+    fontSize:11.5, color:'var(--text-secondary)', marginBottom:4,
+    overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
+  },
+  isbn: { fontSize:10, color:'var(--text-muted)', marginBottom:2 },
+  footer: {
+    padding:'8px 14px 12px', display:'flex', alignItems:'center',
+    justifyContent:'space-between', borderTop:'1px solid var(--border)', marginTop:4,
+  },
+  idPill: {
+    fontSize:10, color:'var(--text-muted)', fontFamily:'monospace',
+    background:'rgba(255,255,255,0.05)', padding:'2px 7px', borderRadius:4,
+  },
+  /* Modal */
+  overlay: {
+    position:'fixed', inset:0, background:'rgba(0,0,0,0.78)', backdropFilter:'blur(7px)',
+    zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center',
+    padding:20, animation:'fadeIn 0.2s ease',
+  },
+  modal: {
+    background:'var(--bg-card)', border:'1px solid var(--border-accent)', borderRadius:20,
+    padding:28, maxWidth:620, width:'100%', position:'relative',
+    boxShadow:'0 28px 90px rgba(0,0,0,0.65)',
+    animation:'modalIn 0.28s cubic-bezier(0.34,1.56,0.64,1)',
+    maxHeight:'90vh', overflowY:'auto',
+  },
+  closeBtn: {
+    position:'absolute', top:16, right:16, background:'rgba(255,255,255,0.07)',
+    border:'1px solid var(--border)', borderRadius:'50%', width:32, height:32,
+    display:'flex', alignItems:'center', justifyContent:'center',
+    color:'var(--text-secondary)', cursor:'pointer',
+  },
+  modalTop: { display:'flex', gap:24, marginBottom:20, alignItems:'flex-start' },
+  modalCover: {
+    width:110, height:150, borderRadius:8, flexShrink:0, position:'relative',
+    display:'flex', alignItems:'center', justifyContent:'center',
+    overflow:'hidden', boxShadow:'4px 4px 22px rgba(0,0,0,0.55)',
+  },
+  modalCoverPat: { position:'absolute', inset:0 },
+  modalSpine: {
+    position:'absolute', left:0, top:0, bottom:0, width:12,
+    background:'rgba(0,0,0,0.3)', borderRight:'1px solid rgba(255,255,255,0.1)',
+  },
+  modalShine: {
+    position:'absolute', top:0, left:12, right:0, height:'45%',
+    background:'linear-gradient(180deg,rgba(255,255,255,0.15) 0%,transparent 100%)',
+  },
+  modalLetter: {
+    fontFamily:"'Playfair Display',serif", fontSize:56, fontWeight:900,
+    color:'rgba(0,0,0,0.35)', position:'relative', zIndex:1, userSelect:'none',
+  },
+  modalTitle: {
+    fontFamily:"'Playfair Display',serif", fontSize:20, fontWeight:900,
+    color:'var(--text-primary)', lineHeight:1.3, marginBottom:6,
+  },
+  modalAuthor: { fontSize:13, color:'var(--text-secondary)', marginBottom:10, fontStyle:'italic' },
+  metaRow: { display:'flex', alignItems:'center', gap:6, marginBottom:4 },
+  metaTxt: { color:'var(--text-muted)', fontSize:12 },
+  statsRow: {
+    display:'flex', gap:20, marginTop:18, padding:'14px 0',
+    borderTop:'1px solid var(--border)',
+  },
+  stat: { textAlign:'center' },
+  statVal: { fontFamily:"'Playfair Display',serif", fontSize:22, fontWeight:900, lineHeight:1 },
+  statLbl: { fontSize:10, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.8px', marginTop:4 },
+  descBox: {
+    background:'rgba(255,255,255,0.03)', border:'1px solid var(--border)',
+    borderRadius:10, padding:'14px 16px',
+  },
+};
+
+const CSS = `
+.book-ecom-card:hover {
+  transform: translateY(-6px) scale(1.02);
+  border-color: var(--border-accent);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(245,158,11,0.2);
+}
+.book-ecom-card:hover .cover-hover-overlay {
+  opacity: 1 !important;
+}
+@keyframes modalIn {
+  from { opacity:0; transform:scale(0.85) translateY(24px); }
+  to   { opacity:1; transform:scale(1) translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity:0; }
+  to   { opacity:1; }
+}
+`;
