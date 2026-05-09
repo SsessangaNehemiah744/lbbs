@@ -103,6 +103,26 @@ router.put('/:bookId', async (req, res, next) => {
 });
 
 /**
+ * POST /api/books/:bookId/reset-availability
+ * Reset availableCopies = totalCopies and clear borrowers array
+ * Used when members who had borrowed books are deleted
+ */
+router.post('/:bookId/reset-availability', async (req, res, next) => {
+  try {
+    const book = await Book.findOne({ bookId: req.params.bookId });
+    if (!book) {
+      return res.status(404).json({ error: `Book with bookId '${req.params.bookId}' not found` });
+    }
+    book.availableCopies = book.totalCopies;
+    book.borrowers = [];
+    const updated = await book.save();
+    return res.status(200).json(updated);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
  * DELETE /api/books/:bookId
  * Remove a book — requires exact bookId; returns 404 if not found
  */
