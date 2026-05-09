@@ -6,6 +6,8 @@ const mongoose = require('mongoose');
 const bookRoutes = require('./routes/books');
 const memberRoutes = require('./routes/members');
 const borrowRoutes = require('./routes/borrows');
+const authRoutes = require('./routes/auth');
+const borrowRequestRoutes = require('./routes/borrowRequests');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 
 const app = express();
@@ -32,6 +34,8 @@ if (process.env.NODE_ENV !== 'test') {
 app.use('/api/books', bookRoutes);
 app.use('/api/members', memberRoutes);
 app.use('/api/borrows', borrowRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/borrow-requests', borrowRequestRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', version: '1.0.0' }));

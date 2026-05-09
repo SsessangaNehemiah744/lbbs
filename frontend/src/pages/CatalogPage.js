@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { BookOpen, Plus, Trash2, Search, RefreshCw, X, Hash, Copy, Info, ChevronDown, ChevronUp, Eye } from 'lucide-react';
-import { getBooks, addBook, deleteBook } from '../utils/api';
+import { BookOpen, Plus, Trash2, Search, RefreshCw, X, Hash, Copy, Info, ChevronUp, Eye, BookDown, CheckCircle } from 'lucide-react';
+import { getBooks, addBook, deleteBook, submitBorrowRequest } from '../utils/api';
+import { getSession } from '../utils/auth';
 
 const COVER_COLORS = ['#f59e0b','#8b5cf6','#10b981','#ef4444','#3b82f6','#fbbf24','#a78bfa','#34d399','#f87171','#60a5fa'];
 const COVER_PATTERNS = [
@@ -30,6 +31,7 @@ function coverPattern(str) { return COVER_PATTERNS[hashStr(str) % COVER_PATTERNS
 
 /* ── Book Detail Modal ── */
 function BookModal({ book, onClose }) {
+  const [imgError, setImgError] = useState(false);
   if (!book) return null;
   const pct = book.totalCopies > 0 ? Math.round((book.availableCopies / book.totalCopies) * 100) : 0;
   const barColor = pct > 50 ? 'var(--emerald)' : pct > 20 ? 'var(--amber)' : 'var(--red)';
@@ -37,6 +39,7 @@ function BookModal({ book, onClose }) {
   const statusClass = book.availableCopies === 0 ? 'badge-red' : book.availableCopies <= 1 ? 'badge-amber' : 'badge-emerald';
   const bg = coverColor(book.bookId || book.title);
   const pat = coverPattern(book.bookId || book.title);
+  const showImg = book.coverImage && !imgError;
 
   return (
     <div style={S.overlay} onClick={onClose}>
@@ -45,10 +48,21 @@ function BookModal({ book, onClose }) {
         <div style={S.modalTop}>
           {/* Large cover */}
           <div style={{ ...S.modalCover, background: bg }}>
-            <div style={{ ...S.modalCoverPat, backgroundImage: pat }}/>
-            <div style={S.modalSpine}/>
-            <span style={S.modalLetter}>{book.title[0].toUpperCase()}</span>
-            <div style={S.modalShine}/>
+            {showImg ? (
+              <img
+                src={book.coverImage}
+                alt={book.title}
+                style={{ width:'100%', height:'100%', objectFit:'cover', display:'block', borderRadius:8, position:'absolute', inset:0 }}
+                onError={() => setImgError(true)}
+              />
+            ) : (
+              <>
+                <div style={{ ...S.modalCoverPat, backgroundImage: pat }}/>
+                <div style={S.modalSpine}/>
+                <span style={S.modalLetter}>{book.title[0].toUpperCase()}</span>
+                <div style={S.modalShine}/>
+              </>
+            )}
           </div>
           {/* Info */}
           <div style={{ flex:1 }}>
@@ -94,24 +108,39 @@ function BookModal({ book, onClose }) {
 }
 
 /* ── Book Card ── */
-function BookCard({ book, onDelete, onClick }) {
+function BookCard({ book, onDelete, onClick, readOnly = false, onBorrow, borrowState = {} }) {
   const pct = book.totalCopies > 0 ? Math.round((book.availableCopies / book.totalCopies) * 100) : 0;
   const barColor = pct > 50 ? 'var(--emerald)' : pct > 20 ? 'var(--amber)' : 'var(--red)';
   const statusLabel = book.availableCopies === 0 ? 'Unavailable' : book.availableCopies <= 1 ? 'Low Stock' : 'Available';
   const statusClass = book.availableCopies === 0 ? 'badge-red' : book.availableCopies <= 1 ? 'badge-amber' : 'badge-emerald';
   const bg = coverColor(book.bookId || book.title);
   const pat = coverPattern(book.bookId || book.title);
+  const [imgError, setImgError] = useState(false);
+
+  const bState = borrowState[book.bookId] || 'idle';
+  const unavailable = book.availableCopies === 0;
+  const showImg = book.coverImage && !imgError;
 
   return (
     <div style={S.card} className="book-ecom-card" onClick={onClick}>
       {/* ── Cover ── */}
       <div style={{ ...S.cover, background: bg }}>
-        <div style={{ ...S.coverPat, backgroundImage: pat }}/>
-        <div style={S.spine}/>
-        <span style={S.letter}>{book.title[0].toUpperCase()}</span>
-        <div style={S.shine}/>
+        {showImg ? (
+          <img
+            src={book.coverImage}
+            alt={book.title}
+            style={{ width:'100%', height:'100%', objectFit:'cover', display:'block', position:'absolute', inset:0 }}
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <>
+            <div style={{ ...S.coverPat, backgroundImage: pat }}/>
+            <div style={S.spine}/>
+            <span style={S.letter}>{book.title[0].toUpperCase()}</span>
+            <div style={S.shine}/>
+          </>
+        )}
         {book.availableCopies === 0 && <div style={S.ribbon}>OUT OF STOCK</div>}
-        {/* Hover overlay */}
         <div className="cover-hover-overlay" style={S.hoverOverlay}>
           <Eye size={16} style={{ marginBottom:4 }}/>
           <span style={{ fontSize:11, fontWeight:700, letterSpacing:'0.5px' }}>View Details</span>
@@ -141,32 +170,86 @@ function BookCard({ book, onDelete, onClick }) {
       {/* ── Footer ── */}
       <div style={S.footer} onClick={e => e.stopPropagation()}>
         <span style={S.idPill}>{book.bookId}</span>
-        <button className="btn btn-danger btn-sm" style={{ padding:'4px 10px' }}
-          onClick={e => { e.stopPropagation(); onDelete(book.bookId, book.title); }}>
-          <Trash2 size={12}/>
-        </button>
+        {/* Admin: delete button */}
+        {!readOnly && (
+          <button className="btn btn-danger btn-sm" style={{ padding:'4px 10px' }}
+            onClick={e => { e.stopPropagation(); onDelete(book.bookId, book.title); }}>
+            <Trash2 size={12}/>
+          </button>
+        )}
+        {/* Student: borrow button */}
+        {readOnly && onBorrow && (
+          bState === 'approved' ? (
+            <span style={{ fontSize:10, color:'var(--emerald)', display:'flex', alignItems:'center', gap:3, fontWeight:700 }}>
+              <CheckCircle size={11}/> Approved
+            </span>
+          ) : bState === 'pending' ? (
+            <span style={{ fontSize:10, color:'#60a5fa', display:'flex', alignItems:'center', gap:3, fontWeight:700 }}>
+              <BookDown size={11}/> Pending…
+            </span>
+          ) : bState === 'rejected' ? (
+            <button
+              className="btn btn-sm"
+              style={{ padding:'4px 12px', fontSize:10, background:'rgba(239,68,68,0.12)', border:'1px solid rgba(239,68,68,0.3)', color:'var(--red)' }}
+              onClick={e => { e.stopPropagation(); onBorrow(book); }}>
+              <BookDown size={11}/> Retry
+            </button>
+          ) : (
+            <button
+              className="btn btn-primary btn-sm"
+              style={{ padding:'4px 12px', fontSize:10, opacity: (unavailable || bState === 'loading') ? 0.5 : 1 }}
+              disabled={unavailable || bState === 'loading'}
+              onClick={e => { e.stopPropagation(); onBorrow(book); }}>
+              {bState === 'loading' ? '…' : <><BookDown size={11}/> Borrow</>}
+            </button>
+          )
+        )}
       </div>
     </div>
   );
 }
 
 /* ── Main Page ── */
-export default function CatalogPage() {
-  const [books, setBooks]     = useState([]);
+export default function CatalogPage({ readOnly = false }) {
+  const [session] = useState(() => getSession()); // stable reference — only read once
+  const [books, setBooks]       = useState([]);
   const [filtered, setFiltered] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [form, setForm]       = useState(initForm);
+  const [loading, setLoading]   = useState(true);
+  const [form, setForm]         = useState(initForm);
   const [submitting, setSubmitting] = useState(false);
-  const [alert, setAlert]     = useState(null);
-  const [search, setSearch]   = useState('');
+  const [alert, setAlert]       = useState(null);
+  const [search, setSearch]     = useState('');
   const [selected, setSelected] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [borrowState, setBorrowState] = useState({});
+
+  const memberId = session?.memberId || null;
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { const r = await getBooks(); setBooks(r.data); setFiltered(r.data); } catch(_) {}
+    try {
+      const r = await getBooks();
+      setBooks(r.data);
+      setFiltered(r.data);
+      // Restore borrow states from existing requests for this student
+      if (readOnly && memberId) {
+        const raw = localStorage.getItem('lbbs_borrow_requests');
+        if (raw) {
+          const reqs = JSON.parse(raw);
+          const states = {};
+          reqs.forEach(req => {
+            if (req.memberId === memberId) {
+              if (req.status === 'pending')  states[req.bookId] = 'pending';
+              if (req.status === 'approved') states[req.bookId] = 'approved';
+              if (req.status === 'rejected') states[req.bookId] = 'rejected';
+            }
+          });
+          setBorrowState(states);
+        }
+      }
+    } catch(_) {}
     setLoading(false);
-  }, []);
+  }, [readOnly, memberId]); // memberId is a primitive string — safe dependency
 
   useEffect(() => { load(); }, [load]);
 
@@ -196,21 +279,57 @@ export default function CatalogPage() {
     catch(err) { showAlert('error', err.message); }
   };
 
+  const handleBorrow = async (book) => {
+    if (!memberId) return;
+    setBorrowState(s => ({ ...s, [book.bookId]: 'loading' }));
+    try {
+      await submitBorrowRequest({ bookId: book.bookId, memberId });
+      setBorrowState(s => ({ ...s, [book.bookId]: 'pending' }));
+      showAlert('success', `Request submitted for "${book.title}". Waiting for librarian approval.`);
+    } catch(err) {
+      setBorrowState(s => ({ ...s, [book.bookId]: 'idle' }));
+      showAlert('error', err.message);
+    }
+  };
+
+  // Poll every 4 seconds to check if any pending requests were approved/rejected
+  useEffect(() => {
+    if (!readOnly || !memberId) return;
+    const interval = setInterval(() => {
+      const raw = localStorage.getItem('lbbs_borrow_requests');
+      if (!raw) return;
+      const reqs = JSON.parse(raw);
+      setBorrowState(prev => {
+        const next = { ...prev };
+        reqs.forEach(r => {
+          if (r.memberId === memberId) {
+            if (r.status === 'approved') next[r.bookId] = 'approved';
+            if (r.status === 'rejected') next[r.bookId] = 'rejected';
+          }
+        });
+        return next;
+      });
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [readOnly, memberId]);
+
   return (
     <div>
       <div className="page-header">
         <div className="page-header-text">
           <h1>Book Catalog</h1>
-          <p>Browse and manage the entire library collection</p>
+          <p>{readOnly ? 'Browse the library collection' : 'Browse and manage the entire library collection'}</p>
         </div>
+        {!readOnly && (
         <button className="btn btn-primary" onClick={() => setShowForm(f => !f)}>
           {showForm ? <ChevronUp size={15}/> : <Plus size={15}/>}
           {showForm ? 'Hide Form' : 'Add New Book'}
         </button>
+        )}
       </div>
 
       {/* Collapsible add form */}
-      {showForm && (
+      {showForm && !readOnly && (
         <div className="card" style={{ marginBottom:24, animation:'fadeIn 0.25s ease' }}>
           <div className="card-header">
             <div className="card-title" style={{ display:'flex', alignItems:'center', gap:8 }}>
@@ -263,7 +382,7 @@ export default function CatalogPage() {
         </div>
       )}
 
-      {!showForm && alert && (
+      {alert && (
         <div className={`alert alert-${alert.type}`} style={{ marginBottom:16 }}><div>{alert.msg}</div></div>
       )}
 
@@ -289,7 +408,8 @@ export default function CatalogPage() {
       ) : (
         <div style={S.grid}>
           {filtered.map(b => (
-            <BookCard key={b._id} book={b} onDelete={handleDelete} onClick={() => setSelected(b)}/>
+            <BookCard key={b._id} book={b} onDelete={handleDelete} onClick={() => setSelected(b)}
+              readOnly={readOnly} onBorrow={readOnly ? handleBorrow : undefined} borrowState={borrowState}/>
           ))}
         </div>
       )}

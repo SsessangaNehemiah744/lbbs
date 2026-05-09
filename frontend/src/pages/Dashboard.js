@@ -9,20 +9,11 @@ function coverColor(str) {
   return COVER_COLORS[Math.abs(h) % COVER_COLORS.length];
 }
 
-function countUp(el, target, duration = 800) {
-  if (!el) return;
-  const start = performance.now();
-  const step = (now) => {
-    const p = Math.min((now - start) / duration, 1);
-    el.textContent = Math.round(p * target);
-    if (p < 1) requestAnimationFrame(step);
-  };
-  requestAnimationFrame(step);
-}
 
 export default function Dashboard() {
   const [recentBooks, setRecentBooks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({ books: 0, members: 0, available: 0, loans: 0 });
 
   useEffect(() => {
     (async () => {
@@ -33,14 +24,7 @@ export default function Dashboard() {
         const avail = books.reduce((s, b) => s + b.availableCopies, 0);
         const onLoan = totalCopies - avail;
 
-        countUp(document.getElementById('stat-books'),     books.length);
-        countUp(document.getElementById('stat-members'),   members.length);
-        countUp(document.getElementById('stat-available'), avail);
-        countUp(document.getElementById('stat-loans'),     onLoan);
-        countUp(document.getElementById('hero-books'),     books.length);
-        countUp(document.getElementById('hero-members'),   members.length);
-        countUp(document.getElementById('hero-loans'),     onLoan);
-
+        setStats({ books: books.length, members: members.length, available: avail, loans: onLoan });
         setRecentBooks([...books].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5));
       } catch (_) {}
       setLoading(false);
@@ -67,15 +51,15 @@ export default function Dashboard() {
           </div>
           <div className="hero-stats">
             <div className="hero-stat">
-              <div className="hero-stat-value" id="hero-books">0</div>
+              <div className="hero-stat-value">{stats.books}</div>
               <div className="hero-stat-label">Books</div>
             </div>
             <div className="hero-stat">
-              <div className="hero-stat-value" id="hero-members">0</div>
+              <div className="hero-stat-value">{stats.members}</div>
               <div className="hero-stat-label">Members</div>
             </div>
             <div className="hero-stat">
-              <div className="hero-stat-value" id="hero-loans">0</div>
+              <div className="hero-stat-value">{stats.loans}</div>
               <div className="hero-stat-label">On Loan</div>
             </div>
           </div>
@@ -83,7 +67,7 @@ export default function Dashboard() {
         {/* Books pile image */}
         <div className="hero-illustration">
           <img
-            src="/books-pile.png"
+            src="/africanwoman.png"
             alt="Books"
             style={{
               width: 220,
@@ -99,22 +83,22 @@ export default function Dashboard() {
       <div className="stat-grid">
         <div className="stat-card amber">
           <div className="stat-icon"><BookOpen size={28} color="var(--amber)"/></div>
-          <div className="stat-value" id="stat-books">0</div>
+          <div className="stat-value">{stats.books}</div>
           <div className="stat-label">Books in Catalog</div>
         </div>
         <div className="stat-card violet">
           <div className="stat-icon"><Users size={28} color="var(--violet-light)"/></div>
-          <div className="stat-value" id="stat-members">0</div>
+          <div className="stat-value">{stats.members}</div>
           <div className="stat-label">Registered Members</div>
         </div>
         <div className="stat-card emerald">
           <div className="stat-icon"><CheckCircle size={28} color="var(--emerald)"/></div>
-          <div className="stat-value" id="stat-available">0</div>
+          <div className="stat-value">{stats.available}</div>
           <div className="stat-label">Available Copies</div>
         </div>
         <div className="stat-card red">
           <div className="stat-icon"><Clock size={28} color="var(--red)"/></div>
-          <div className="stat-value" id="stat-loans">0</div>
+          <div className="stat-value">{stats.loans}</div>
           <div className="stat-label">Copies On Loan</div>
         </div>
       </div>
