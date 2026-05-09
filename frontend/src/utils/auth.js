@@ -1,7 +1,10 @@
 /**
  * auth.js — backend-based authentication
- * Session is stored in localStorage (just the user object, no sensitive data).
- * All credential checks happen on the backend.
+ * All credentials stored in MongoDB via the hosted backend.
+ * Session (user object only, no password) stored in localStorage.
+ *
+ * Librarian: tabitha.lib / Lib@Mak2025  (fixed, seeded in DB)
+ * Students:  register → saved to DB → login from any device
  */
 
 import axios from 'axios';
@@ -13,8 +16,7 @@ function _err(e) {
   return e.response?.data?.error || e.response?.data?.message || e.message || 'An error occurred.';
 }
 
-// ── Auth API ──────────────────────────────────────────────────────────────────
-
+// ── Librarian login ───────────────────────────────────────────────────────────
 export async function loginAdmin(username, password) {
   try {
     const res = await axios.post(`${BASE}/auth/login-admin`, { username, password });
@@ -26,6 +28,7 @@ export async function loginAdmin(username, password) {
   }
 }
 
+// ── Student login ─────────────────────────────────────────────────────────────
 export async function loginStudent(studentId, password) {
   try {
     const res = await axios.post(`${BASE}/auth/login-student`, { studentId, password });
@@ -37,6 +40,7 @@ export async function loginStudent(studentId, password) {
   }
 }
 
+// ── Student signup ────────────────────────────────────────────────────────────
 export async function signupStudent({ name, studentId, email, password }) {
   try {
     const res = await axios.post(`${BASE}/auth/signup-student`, { name, studentId, email, password });
@@ -48,6 +52,7 @@ export async function signupStudent({ name, studentId, email, password }) {
   }
 }
 
+// ── Session helpers ───────────────────────────────────────────────────────────
 export function logout() {
   localStorage.removeItem(SESSION_KEY);
 }
