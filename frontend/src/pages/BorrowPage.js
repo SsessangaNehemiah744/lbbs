@@ -80,9 +80,10 @@ export default function BorrowPage() {
   }, [loadRequests]);
 
   const handleApprove = async (req) => {
-    setActionId(req.id);
+    const id = req._id || req.id;
+    setActionId(id);
     try {
-      await approveBorrowRequest(req.id);
+      await approveBorrowRequest(id);
       showAlert('success', `"${req.bookTitle}" approved for ${req.memberName}.`);
       loadRequests();
     } catch(err) {
@@ -93,9 +94,10 @@ export default function BorrowPage() {
 
   const handleReject = async (reason) => {
     if (!rejectTarget) return;
-    setActionId(rejectTarget.id);
+    const id = rejectTarget._id || rejectTarget.id;
+    setActionId(id);
     try {
-      await rejectBorrowRequest(rejectTarget.id, reason);
+      await rejectBorrowRequest(id, reason);
       showAlert('success', `Request for "${rejectTarget.bookTitle}" rejected.`);
       setRejectTarget(null);
       loadRequests();
@@ -192,7 +194,7 @@ export default function BorrowPage() {
           ) : (
             <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
               {visible.map((req, i) => (
-                <div key={req.id} style={{
+                <div key={req._id || req.id} style={{
                   background:'var(--bg-card)', border:`1px solid ${
                     req.status === 'pending'  ? 'rgba(96,165,250,0.35)' :
                     req.status === 'approved' ? 'rgba(16,185,129,0.35)' :
@@ -266,7 +268,7 @@ export default function BorrowPage() {
                           color:'var(--emerald)', padding:'6px 14px', fontSize:12,
                           opacity: actionId === req.id ? 0.6 : 1,
                         }}
-                        disabled={actionId === req.id}
+                        disabled={actionId === (req._id || req.id)}
                         onClick={() => handleApprove(req)}>
                         <CheckCircle size={13}/> Approve
                       </button>
@@ -275,9 +277,9 @@ export default function BorrowPage() {
                         style={{
                           background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.25)',
                           color:'var(--red)', padding:'6px 14px', fontSize:12,
-                          opacity: actionId === req.id ? 0.6 : 1,
+                          opacity: actionId === (req._id || req.id) ? 0.6 : 1,
                         }}
-                        disabled={actionId === req.id}
+                        disabled={actionId === (req._id || req.id)}
                         onClick={() => setRejectTarget(req)}>
                         <X size={13}/> Reject
                       </button>
