@@ -11,6 +11,11 @@ const router  = express.Router();
 const BorrowRequest = require('../models/BorrowRequest');
 const Book   = require('../models/Book');
 const Member = require('../models/Member');
+const ActivityLog = require('../models/ActivityLog');
+
+async function _log(type, message, meta = {}) {
+  try { await ActivityLog.create({ type, message, meta }); } catch(_) {}
+}
 
 // ── Submit request ────────────────────────────────────────────────────────────
 router.post('/', async (req, res, next) => {
@@ -82,6 +87,8 @@ router.post('/:id/approve', async (req, res, next) => {
 
     request.status = 'approved';
     await request.save();
+
+    await _log('borrow', `"${bookTitle}" borrow request approved for ${memberName}.`, { bookId, memberId });
 
     return res.json(request);
   } catch (err) { next(err); }

@@ -9,6 +9,11 @@ const express = require('express');
 const router = express.Router();
 const Book = require('../models/Book');
 const Member = require('../models/Member');
+const ActivityLog = require('../models/ActivityLog');
+
+async function _log(type, message, meta = {}) {
+  try { await ActivityLog.create({ type, message, meta }); } catch(_) {}
+}
 
 /**
  * Ensures availableCopies is a valid number.
@@ -77,6 +82,8 @@ router.post('/borrow', async (req, res, next) => {
     member.borrowedBooks.push(book._id);
     await member.save();
 
+    await _log('borrow', `"${book.title}" borrowed by ${member.name} (${member.memberId}).`, { bookId: book.bookId, memberId: member.memberId });
+
     return res.status(200).json({
       message: `'${book.title}' successfully borrowed by ${member.name}`,
       availableCopies: book.availableCopies,
@@ -131,6 +138,8 @@ router.post('/return', async (req, res, next) => {
       member.borrowedBooks.splice(bookIndex, 1);
       await member.save();
     }
+
+    await _log('return', `"${book.title}" returned by ${member.name} (${member.memberId}).`, { bookId: book.bookId, memberId: member.memberId });
 
     return res.status(200).json({
       message: `'${book.title}' successfully returned by ${member.name}`,

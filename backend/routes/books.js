@@ -8,6 +8,11 @@
 const express = require('express');
 const router = express.Router();
 const Book = require('../models/Book');
+const ActivityLog = require('../models/ActivityLog');
+
+async function _log(type, message, meta = {}) {
+  try { await ActivityLog.create({ type, message, meta }); } catch(_) {}
+}
 
 /**
  * POST /api/books
@@ -36,6 +41,7 @@ router.post('/', async (req, res, next) => {
 
     const book = new Book({ bookId: bookId.trim(), title: title.trim(), author: author.trim(), totalCopies, genre, isbn, description, coverImage });
     const saved = await book.save();
+    await _log('add_book', `Book "${saved.title}" by ${saved.author} added to catalog.`, { bookId: saved.bookId });
     return res.status(201).json(saved);
   } catch (err) {
     next(err);
@@ -132,6 +138,7 @@ router.delete('/:bookId', async (req, res, next) => {
     if (!book) {
       return res.status(404).json({ error: `Book with bookId '${req.params.bookId}' not found` });
     }
+    await _log('delete_book', `Book "${book.title}" removed from catalog.`, { bookId: book.bookId });
     return res.status(200).json({ message: `Book '${book.title}' removed from catalog` });
   } catch (err) {
     next(err);

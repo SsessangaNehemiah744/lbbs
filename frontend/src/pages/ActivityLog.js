@@ -1,33 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { Activity, BookDown, BookUp, Trash2, UserPlus, BookOpen } from 'lucide-react';
-
-const LOG_KEY = 'lbbs_activity_log';
-
-export function logActivity(type, message, meta = {}) {
-  const logs = getActivityLogs();
-  logs.unshift({
-    id: Math.random().toString(36).slice(2),
-    type,       // 'borrow' | 'return' | 'add_book' | 'delete_book' | 'add_member' | 'delete_member'
-    message,
-    meta,
-    timestamp: new Date().toISOString(),
-  });
-  // Keep last 200 entries
-  localStorage.setItem(LOG_KEY, JSON.stringify(logs.slice(0, 200)));
-}
-
-export function getActivityLogs() {
-  const raw = localStorage.getItem(LOG_KEY);
-  return raw ? JSON.parse(raw) : [];
-}
+import React, { useState, useEffect, useCallback } from 'react';
+import { Activity, BookDown, BookUp, Trash2, UserPlus, BookOpen, RefreshCw } from 'lucide-react';
+import api from '../utils/api';
 
 const TYPE_CONFIG = {
-  borrow:        { icon: BookDown,   color: 'var(--amber)',        label: 'Borrow',        badge: 'badge-amber'   },
-  return:        { icon: BookUp,     color: 'var(--emerald)',      label: 'Return',        badge: 'badge-emerald' },
-  add_book:      { icon: BookOpen,   color: 'var(--violet-light)', label: 'Book Added',    badge: 'badge-violet'  },
-  delete_book:   { icon: Trash2,     color: 'var(--red)',          label: 'Book Deleted',  badge: 'badge-red'     },
-  add_member:    { icon: UserPlus,   color: 'var(--emerald)',      label: 'Member Added',  badge: 'badge-emerald' },
-  delete_member: { icon: Trash2,     color: 'var(--red)',          label: 'Member Removed',badge: 'badge-red'     },
+  borrow:        { icon: BookDown,  color: 'var(--amber)',        label: 'Borrow',         badge: 'badge-amber'   },
+  return:        { icon: BookUp,    color: 'var(--emerald)',      label: 'Return',         badge: 'badge-emerald' },
+  add_book:      { icon: BookOpen,  color: 'var(--violet-light)', label: 'Book Added',     badge: 'badge-violet'  },
+  delete_book:   { icon: Trash2,    color: 'var(--red)',          label: 'Book Deleted',   badge: 'badge-red'     },
+  add_member:    { icon: UserPlus,  color: 'var(--emerald)',      label: 'Member Added',   badge: 'badge-emerald' },
+  delete_member: { icon: Trash2,    color: 'var(--red)',          label: 'Member Removed', badge: 'badge-red'     },
+  borrow_request:{ icon: BookDown,  color: '#60a5fa',             label: 'Request',        badge: 'badge-gray'    },
+  borrow_rejected:{ icon: BookDown, color: 'var(--red)',          label: 'Rejected',       badge: 'badge-red'     },
 };
 
 function timeAgo(iso) {
@@ -37,27 +20,40 @@ function timeAgo(iso) {
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24)  return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
 }
 
 export default function ActivityLog() {
   const [logs, setLogs]     = useState([]);
   const [filter, setFilter] = useState('all');
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    setLogs(getActivityLogs());
-    const t = setInterval(() => setLogs(getActivityLogs()), 5000);
-    return () => clearInterval(t);
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/activity');
+      setLogs(res.data);
+    } catch(_) {}
+    setLoading(false);
   }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Auto-refresh every 10 seconds
+  useEffect(() => {
+    const t = setInterval(load, 10000);
+    return () => clearInterval(t);
+  }, [load]);
 
   const types = ['all', 'borrow', 'return', 'add_book', 'delete_book', 'add_member', 'delete_member'];
   const visible = filter === 'all' ? logs : logs.filter(l => l.type === filter);
 
-  const clearLogs = () => {
+  const clearLogs = async () => {
     if (!window.confirm('Clear all activity logs?')) return;
-    localStorage.removeItem(LOG_KEY);
-    setLogs([]);
+    try {
+      await api.delete('/activity');
+      setLogs([]);
+    } catch(_) {}
   };
 
   return (
@@ -67,9 +63,14 @@ export default function ActivityLog() {
           <h1>Activity Log</h1>
           <p>A record of all library operations</p>
         </div>
-        <button className="btn btn-danger btn-sm" onClick={clearLogs}>
-          <Trash2 size={13}/> Clear Log
-        </button>
+        <div style={{ display:'flex', gap:8 }}>
+          <button className="btn btn-outline btn-sm" onClick={load}>
+            <RefreshCw size={13}/> Refresh
+          </button>
+          <button className="btn btn-danger btn-sm" onClick={clearLogs}>
+            <Trash2 size={13}/> Clear Log
+          </button>
+        </div>
       </div>
 
       {/* Filter pills */}
@@ -81,8 +82,7 @@ export default function ActivityLog() {
               background: filter === t ? 'var(--amber)' : 'var(--bg-card)',
               color: filter === t ? '#000' : 'var(--text-secondary)',
               fontSize:12, fontWeight:600, cursor:'pointer',
-              fontFamily:'Inter,sans-serif',
-              transition:'all 0.15s',
+              fontFamily:'Inter,sans-serif', transition:'all 0.15s',
             }}
             onClick={() => setFilter(t)}>
             {t === 'all' ? 'All' : (TYPE_CONFIG[t]?.label || t)}
@@ -91,7 +91,9 @@ export default function ActivityLog() {
       </div>
 
       <div className="card">
-        {visible.length === 0 ? (
+        {loading ? (
+          <div className="loading-center"><div className="spinner"/></div>
+        ) : visible.length === 0 ? (
           <div className="empty-state">
             <Activity size={40} style={{ margin:'0 auto 12px', display:'block', opacity:0.3 }}/>
             <h3>No activity yet</h3>
@@ -103,7 +105,7 @@ export default function ActivityLog() {
               const cfg = TYPE_CONFIG[log.type] || { icon: Activity, color:'var(--text-muted)', badge:'badge-gray', label: log.type };
               const Icon = cfg.icon;
               return (
-                <div key={log.id} style={{
+                <div key={log._id} style={{
                   display:'flex', alignItems:'flex-start', gap:14,
                   padding:'14px 0',
                   borderBottom: i < visible.length - 1 ? '1px solid var(--border)' : 'none',
@@ -120,11 +122,11 @@ export default function ActivityLog() {
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:3 }}>
                       <span className={`badge ${cfg.badge}`} style={{ fontSize:10 }}>{cfg.label}</span>
-                      <span style={{ fontSize:11, color:'var(--text-muted)' }}>{timeAgo(log.timestamp)}</span>
+                      <span style={{ fontSize:11, color:'var(--text-muted)' }}>{timeAgo(log.createdAt)}</span>
                     </div>
                     <p style={{ fontSize:13, color:'var(--text-primary)', margin:0, lineHeight:1.5 }}>{log.message}</p>
                     <p style={{ fontSize:11, color:'var(--text-muted)', margin:'2px 0 0' }}>
-                      {new Date(log.timestamp).toLocaleString('en-GB', { dateStyle:'medium', timeStyle:'short' })}
+                      {new Date(log.createdAt).toLocaleString('en-GB', { dateStyle:'medium', timeStyle:'short' })}
                     </p>
                   </div>
                 </div>

@@ -10,6 +10,11 @@
 const express = require('express');
 const router = express.Router();
 const Member = require('../models/Member');
+const ActivityLog = require('../models/ActivityLog');
+
+async function _log(type, message, meta = {}) {
+  try { await ActivityLog.create({ type, message, meta }); } catch(_) {}
+}
 
 /** POST /api/members — Register a new member */
 router.post('/', async (req, res, next) => {
@@ -34,6 +39,7 @@ router.post('/', async (req, res, next) => {
 
     const member = new Member({ memberId: memberId.trim(), name: name.trim(), email, phone });
     const saved = await member.save();
+    await _log('add_member', `Member "${saved.name}" (${saved.memberId}) registered.`, { memberId: saved.memberId });
     return res.status(201).json(saved);
   } catch (err) {
     next(err);
@@ -94,6 +100,7 @@ router.delete('/:memberId', async (req, res, next) => {
     if (!member) {
       return res.status(404).json({ error: `Member with memberId '${req.params.memberId}' not found` });
     }
+    await _log('delete_member', `Member "${member.name}" (${member.memberId}) removed.`, { memberId: member.memberId });
     return res.status(200).json({ message: `Member '${member.name}' removed` });
   } catch (err) {
     next(err);

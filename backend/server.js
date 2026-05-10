@@ -8,6 +8,7 @@ const memberRoutes = require('./routes/members');
 const borrowRoutes = require('./routes/borrows');
 const authRoutes = require('./routes/auth');
 const borrowRequestRoutes = require('./routes/borrowRequests');
+const activityLogRoutes = require('./routes/activityLog');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 
 const app = express();
@@ -36,6 +37,7 @@ app.use('/api/members', memberRoutes);
 app.use('/api/borrows', borrowRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/borrow-requests', borrowRequestRoutes);
+app.use('/api/activity', activityLogRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', version: '1.0.0' }));
