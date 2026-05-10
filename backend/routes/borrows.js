@@ -146,15 +146,16 @@ router.post('/return', async (req, res, next) => {
  * GET /api/borrows/member/:memberId
  * FR-10: View all books currently borrowed by a member
  */
-router.get('/member/:memberId', async (req, res, next) => {
+router.get('/member/:memberId(*)', async (req, res, next) => {
   try {
-    const member = await Member.findOne({ memberId: req.params.memberId }).populate(
+    const memberId = decodeURIComponent(req.params.memberId);
+    const member = await Member.findOne({ memberId }).populate(
       'borrowedBooks',
-      'bookId title author genre availableCopies totalCopies'
+      'bookId title author genre availableCopies totalCopies isbn description coverImage'
     );
     if (!member) {
       return res.status(404).json({
-        error: `Member with memberId '${req.params.memberId}' not found`,
+        error: `Member with memberId '${memberId}' not found`,
       });
     }
     return res.status(200).json({

@@ -35,7 +35,7 @@ export const deleteMember   = (memberId)     => api.delete(`/members/${memberId}
 // ── Borrows ───────────────────────────────────────────────────────────────────
 export const borrowBook         = (data)     => api.post('/borrows/borrow', data);
 export const returnBook         = (data)     => api.post('/borrows/return', data);
-export const getMemberBorrows   = (memberId) => api.get(`/borrows/member/${memberId}`);
+export const getMemberBorrows   = (memberId) => api.get(`/borrows/member/${encodeURIComponent(memberId)}`);
 
 // ── Borrow Requests ───────────────────────────────────────────────────────────
 export const submitBorrowRequest  = (data)   => api.post('/borrow-requests', data);
