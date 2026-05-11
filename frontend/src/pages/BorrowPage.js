@@ -79,12 +79,12 @@ export default function BorrowPage() {
     return () => clearInterval(t);
   }, [loadRequests]);
 
-  const handleApprove = async (req) => {
-    const id = req._id || req.id;
+  const handleApprove = async (borrowReq) => {
+    const id = borrowReq._id || borrowReq.id;
     setActionId(id);
     try {
       await approveBorrowRequest(id);
-      showAlert('success', `"${req.bookTitle}" approved for ${req.memberName}.`);
+      showAlert('success', `"${borrowReq.bookTitle}" approved for ${borrowReq.memberName}.`);
       loadRequests();
     } catch(err) {
       showAlert('error', err.message);
